@@ -1,24 +1,29 @@
 libary(RJDBC)
 
-getData <- function(timeInt = FALSE){
-  ## timeInt can be TRUE or FALSE (default = FALSE). If FALSE, timeInt query builds a two hour long data frame. If TRUE, timeInt retrieves the most recent 5 minutes worth of data.
-  
+getData <- function(timeInt = FALSE, getTime = NULL){
   # connect to the database
   conn <- dbConnect(drv, connstr)
   
-  # get time of latest data entry
-  MySQL <- "select max(time_of_data) from nimbus"
-  df <- dbGetQuery(conn, MySQL)
+  
+  if(is.null(getTime)){
+    # get time of latest data entry
+    MySQL <- "select max(time_of_data) from nimbus"
+    getTime <- dbGetQuery(conn, MySQL)
+  }
   
   # check how much data is required
   if(!timeInt){
-    # get previous 5 minutes of data
-    MySQL <- paste0("select time_of_data, last_stop_short_desc, contract_route, trip_type, registration_number, schedule_deviation from nimbus where schedule_deviation > -1E8",
-                    " and time_of_data >= '",as.POSIXct(df$max)-2*60*60,"'")
-  } else {
     # get previous 2 hours of data
     MySQL <- paste0("select time_of_data, last_stop_short_desc, contract_route, trip_type, registration_number, schedule_deviation from nimbus where schedule_deviation > -1E8",
-                    " and time_of_data >= '",as.POSIXct(df$max)-5*60,"'")
+                    " and (time_of_data >= '",as.POSIXct(getTime)-60*60*2,"'",
+                    " and time_of_data <= '",as.POSIXct(getTime),"')",
+                    " and trip_type = 3 and last_stop_short_desc in ('",paste(validStops,collapse = "','"),"')")
+  } else {
+    # get previous 5 minutes of data
+    MySQL <- paste0("select time_of_data, last_stop_short_desc, contract_route, trip_type, registration_number, schedule_deviation from nimbus where schedule_deviation > -1E8",
+                    " and (time_of_data >= '",as.POSIXct(getTime)-5*60,"'",
+                    " and time_of_data <= '",as.POSIXct(getTime),"')",
+                    " and trip_type = 3 and last_stop_short_desc in ('",paste(validStops,collapse = "','"),"')")
   }
   
   df <- dbGetQuery(conn, MySQL)
